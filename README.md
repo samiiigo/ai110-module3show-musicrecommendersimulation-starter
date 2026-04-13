@@ -31,6 +31,26 @@ Genre match matters the most, then mood, and the rest help fine-tune the result.
 
 After that, all songs get ranked by their total score, and the system recommends the top few. That way, you can always see exactly why each song was suggested.
 
+I have added 10 songs in data/songs.csv. Each song has a genre, mood, energy, tempo_bpm, valence, danceability, and acousticness.
+
+My user profile is a small dictionary with these fields:
+- favorite_genre
+- favorite_mood
+- target_energy
+- likes_acoustic
+
+The scoring is simple:
+
+- +2.0 for a genre match
+- +1.0 for a mood match
+- up to +2.0 for energy closeness
+- up to +1.0 for danceability closeness
+- +0.5 if the acousticness fits what the user likes
+
+I then rank every song by total score and return the top results.
+
+One bias I expect is that genre can still overpower everything else if I weight it too much. That might make the system ignore songs that match the mood and energy really well.
+
 ---
 
 ## Getting Started
