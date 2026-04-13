@@ -2,6 +2,68 @@ from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 import csv
 
+DEFAULT_SCORING_MODE = "balanced"
+SCORING_WEIGHTS_BY_MODE: Dict[str, Dict[str, float]] = {
+    "balanced": {
+        "genre": 1.0,
+        "mood": 1.0,
+        "energy": 4.0,
+        "danceability": 1.0,
+        "acoustic": 0.5,
+        "popularity": 1.5,
+        "decade": 1.25,
+        "mood_tag": 0.8,
+        "instrumental": 1.0,
+        "lyrical": 1.0,
+        "explicitness": 0.9,
+    },
+    "genre-first": {
+        "genre": 3.0,
+        "mood": 0.8,
+        "energy": 2.5,
+        "danceability": 0.8,
+        "acoustic": 0.4,
+        "popularity": 1.0,
+        "decade": 1.0,
+        "mood_tag": 0.6,
+        "instrumental": 0.6,
+        "lyrical": 0.6,
+        "explicitness": 0.6,
+    },
+    "mood-first": {
+        "genre": 0.8,
+        "mood": 3.0,
+        "energy": 2.5,
+        "danceability": 1.0,
+        "acoustic": 0.6,
+        "popularity": 1.0,
+        "decade": 1.0,
+        "mood_tag": 1.6,
+        "instrumental": 0.8,
+        "lyrical": 0.8,
+        "explicitness": 0.7,
+    },
+    "energy-focused": {
+        "genre": 0.7,
+        "mood": 0.7,
+        "energy": 6.0,
+        "danceability": 1.5,
+        "acoustic": 0.3,
+        "popularity": 0.8,
+        "decade": 0.7,
+        "mood_tag": 0.5,
+        "instrumental": 0.7,
+        "lyrical": 0.7,
+        "explicitness": 0.5,
+    },
+}
+
+
+def get_scoring_weights(mode: str) -> Dict[str, float]:
+    """Return scoring weights for a named strategy mode, falling back to balanced."""
+    normalized_mode = str(mode or DEFAULT_SCORING_MODE).strip().lower()
+    return SCORING_WEIGHTS_BY_MODE.get(normalized_mode, SCORING_WEIGHTS_BY_MODE[DEFAULT_SCORING_MODE])
+
 @dataclass
 class Song:
     """
@@ -50,7 +112,7 @@ class Recommender:
     def __init__(self, songs: List[Song]):
         self.songs = songs
 
-    def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
+    def recommend(self, user: UserProfile, k: int = 5, mode: str = DEFAULT_SCORING_MODE) -> List[Song]:
         """Return top-k songs ranked by compatibility with the user profile."""
         scored: List[Tuple[Song, float]] = []
         user_prefs = {
@@ -64,6 +126,7 @@ class Recommender:
             "target_instrumentalness": user.target_instrumentalness,
             "target_lyrical_density": user.target_lyrical_density,
             "max_explicitness": user.max_explicitness,
+            "scoring_mode": mode,
         }
 
         for song in self.songs:
@@ -86,7 +149,7 @@ class Recommender:
         scored.sort(key=lambda item: item[1], reverse=True)
         return [song for song, _ in scored[:k]]
 
-    def explain_recommendation(self, user: UserProfile, song: Song) -> str:
+    def explain_recommendation(self, user: UserProfile, song: Song, mode: str = DEFAULT_SCORING_MODE) -> str:
         """Explain why a specific song was recommended for this user."""
         user_prefs = {
             "genre": user.favorite_genre,
@@ -99,6 +162,7 @@ class Recommender:
             "target_instrumentalness": user.target_instrumentalness,
             "target_lyrical_density": user.target_lyrical_density,
             "max_explicitness": user.max_explicitness,
+            "scoring_mode": mode,
         }
         song_dict = {
             "genre": song.genre,
@@ -181,17 +245,19 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     target_lyrical_density = user_prefs.get("target_lyrical_density")
     max_explicitness = user_prefs.get("max_explicitness")
 
-    genre_weight = 1.0
-    mood_weight = 1.0
-    energy_weight = 4.0
-    danceability_weight = 1.0
-    acoustic_weight = 0.5
-    popularity_weight = 1.5
-    decade_weight = 1.25
-    mood_tag_weight = 0.8
-    instrumental_weight = 1.0
-    lyrical_weight = 1.0
-    explicitness_weight = 0.9
+    weights = get_scoring_weights(str(user_prefs.get("scoring_mode", DEFAULT_SCORING_MODE)))
+
+    genre_weight = weights["genre"]
+    mood_weight = weights["mood"]
+    energy_weight = weights["energy"]
+    danceability_weight = weights["danceability"]
+    acoustic_weight = weights["acoustic"]
+    popularity_weight = weights["popularity"]
+    decade_weight = weights["decade"]
+    mood_tag_weight = weights["mood_tag"]
+    instrumental_weight = weights["instrumental"]
+    lyrical_weight = weights["lyrical"]
+    explicitness_weight = weights["explicitness"]
 
     if pref_genre and song_genre == pref_genre:
         score += genre_weight
@@ -290,16 +356,20 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
 
     return score, reasons
 
-def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
+def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5, mode: Optional[str] = None) -> List[Tuple[Dict, float, str]]:
     """
     Functional implementation of the recommendation logic.
     Required by src/main.py
     """
     """Score all songs and return the top-k with score and explanation."""
     scored: List[Tuple[Dict, float, str]] = []
+    active_mode = mode or user_prefs.get("scoring_mode", DEFAULT_SCORING_MODE)
+    prefs_with_mode = dict(user_prefs)
+    prefs_with_mode["scoring_mode"] = active_mode
 
     for song in songs:
-        score, reasons = score_song(user_prefs, song)
+        score, reasons = score_song(prefs_with_mode, song)
+        reasons.insert(0, f"scoring mode: {str(active_mode).strip().lower()}")
         explanation = "; ".join(reasons)
         scored.append((song, score, explanation))
 

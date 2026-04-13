@@ -1,4 +1,4 @@
-from src.recommender import Song, UserProfile, Recommender
+from src.recommender import Song, UserProfile, Recommender, recommend_songs
 
 def make_small_recommender() -> Recommender:
     songs = [
@@ -59,3 +59,55 @@ def test_explain_recommendation_returns_non_empty_string():
     explanation = rec.explain_recommendation(user, song)
     assert isinstance(explanation, str)
     assert explanation.strip() != ""
+
+
+def test_scoring_modes_change_ranking_order():
+    songs = [
+        {
+            "id": 1,
+            "title": "Genre Match Song",
+            "artist": "A",
+            "genre": "pop",
+            "mood": "sad",
+            "energy": 0.8,
+            "tempo_bpm": 120,
+            "valence": 0.6,
+            "danceability": 0.7,
+            "acousticness": 0.3,
+            "popularity_0_100": 80,
+            "release_decade": 2010,
+            "mood_tags": "nostalgic|moody",
+            "instrumentalness": 0.1,
+            "lyrical_density": 0.6,
+            "explicitness": 0.2,
+        },
+        {
+            "id": 2,
+            "title": "Mood Match Song",
+            "artist": "B",
+            "genre": "rock",
+            "mood": "happy",
+            "energy": 0.8,
+            "tempo_bpm": 120,
+            "valence": 0.7,
+            "danceability": 0.7,
+            "acousticness": 0.3,
+            "popularity_0_100": 80,
+            "release_decade": 2010,
+            "mood_tags": "euphoric|uplifting",
+            "instrumentalness": 0.1,
+            "lyrical_density": 0.6,
+            "explicitness": 0.2,
+        },
+    ]
+    prefs = {
+        "genre": "pop",
+        "mood": "happy",
+        "energy": 0.8,
+    }
+
+    genre_first = recommend_songs(prefs, songs, k=2, mode="genre-first")
+    mood_first = recommend_songs(prefs, songs, k=2, mode="mood-first")
+
+    assert genre_first[0][0]["title"] == "Genre Match Song"
+    assert mood_first[0][0]["title"] == "Mood Match Song"
